@@ -1,60 +1,39 @@
-import { useEffect, useState } from 'react';
-import {
-  Container,
-  CategoriesContainer,
-  MenuContainer,
-  Footer,
-  FooterContainer,
-  CenteredContainer,
-} from './styles';
-import { Header } from '../components/Header';
-import { Categories } from '../components/Categories';
-import { Menu } from '../components/Menu';
-import { Button } from '../components/Button';
-import { TableModal } from '../components/TableModal';
-import { Cart } from '../components/Cart';
-import { CartItem } from '../types/CartItem';
-import { Product } from '../types/Product';
-import { ActivityIndicator } from 'react-native';
+import {CategoriesContainer, CenteredContainer, Container, Footer, FooterContainer, MenuContainer} from './styles';
+import {Header} from '../components/Header';
+import {Categories} from '../components/Categories';
+import {Button} from '../components/Button';
+import {Menu} from '../components/Menu';
+import {TableModal} from '../components/TableModal';
+import {useEffect, useState} from 'react';
+import {Cart} from '../components/Cart';
+import {CartItem} from '../types/cartItem';
+import {Product} from '../types/product';
+import {ActivityIndicator} from 'react-native';
+import {Empty} from '../components/Icons/Empty';
+import {Text} from '../components/Text';
+import {StatusBar} from 'expo-status-bar';
+import {Category} from '../types/category';
+import {api} from '../utils/api';
 
-import { Empty } from '../components/Icons/Empty';
-import { Text } from '../components/Text';
-import { Category } from '../types/Category';
-
-import { api } from '../utils/api';
-
-
-export function Main() {
-
+export function  Main() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
   const [isTableModalVisible, setIsTableModalVisible] = useState(false);
   const [selectedTable, setSelectedTable] = useState('');
-  const [cartItems, setCartItems] = useState<CartItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [isLoadingProducts, setIsLoadingProducts] = useState(false);
-
+  const [cartItems, setCartItems] = useState<Array<CartItem> | []>([]);
+  const [products, setProducts] = useState<Product[] | []>([]);
+  const [categories, setCategories] = useState<Category[] | []>([]);
 
   useEffect(() => {
     Promise.all([
-      api.get('/categories'),
-      api.get('/products'),
+      api.get('categories'),
+      api.get('products'),
     ]).then(([categoriesResponse, productsResponse]) => {
-      setCategories(categoriesResponse.data);
       setProducts(productsResponse.data);
+      setCategories(categoriesResponse.data);
       setIsLoading(false);
     });
   }, []);
-
-  async function handleSelectCatetegory(categoryId: string) {
-    const route = !categoryId ? '/products' : `/categories/${categoryId}/products`;
-    setIsLoadingProducts(true);
-
-    const { data } = await api.get(route);
-    setProducts(data);
-    setIsLoadingProducts(false);
-  }
-
 
   function handleSaveTable(table: string) {
     setSelectedTable(table);
@@ -66,127 +45,117 @@ export function Main() {
     setCartItems([]);
   }
 
-
   function handleAddToCart(product: Product) {
-    if (!selectedTable) {
-      setIsTableModalVisible(true);
-    }
 
 
+    if (!selectedTable) setIsTableModalVisible(true);
 
-    setCartItems((prevState) => {
-      const itemIndex = prevState.findIndex(cartItem => cartItem.product._id == product._id);
+    setCartItems(prevState => {
+      const index = prevState.findIndex((cartItem) => cartItem.product._id === product._id);
 
-      if (itemIndex < 0) {
-        return prevState.concat({
-          quantity: 1,
+      if (index < 0) {
+        return [...prevState, {
           product,
-        });
+          quantity: 1
+        }];
       }
 
-      const newCartItems = [...prevState];
-      const item = newCartItems[itemIndex];
-
-      newCartItems[itemIndex] = {
-        ...item,
-        quantity: item.quantity + 1,
-      };
-
-      return newCartItems;
+      return prevState.map((cartItem) => {
+        if (cartItem.product._id === product._id) return {
+          ...cartItem,
+          quantity: cartItem.quantity + 1
+        };
+        return cartItem;
+      });
     });
   }
 
-  function handleDecrementCartItem(product: Product) {
-    setCartItems((prevState) => {
-      const itemIndex = prevState.findIndex(cartItem => cartItem.product._id == product._id);
+  function handleRemoveFromCart(product: Product) {
+    setCartItems(prevState => {
+      const item = prevState.find((cartItem) => cartItem.product._id === product._id);
 
-      const item = prevState[itemIndex];
-      const newCartItems = [...prevState];
+      if (!item) return prevState;
 
-      if (item.quantity == 1) {
-
-        newCartItems.splice(itemIndex, 1);
-
-        return newCartItems;
+      if (item.quantity === 1) {
+        return prevState.filter((cartItem) => !(cartItem.product._id === product._id));
       }
 
-      newCartItems[itemIndex] = {
-        ...item,
-        quantity: item.quantity - 1,
-      };
-
-      return newCartItems;
+      return prevState.map((cartItem) => {
+        if (cartItem.product._id === product._id) return {
+          ...cartItem,
+          quantity: cartItem.quantity - 1
+        };
+        return cartItem;
+      });
     });
   }
 
+  async function handleSelectedCategory(categoryId: string) {
+    const route = !categoryId ?
+      'products' :
+      `categories/${categoryId}/products`;
 
-
+    setIsLoadingProducts(true);
+    const { data } = await api.get(route);
+    setProducts(data);
+    setIsLoadingProducts(false);
+  }
 
   return (
     <>
+      <StatusBar style={'dark'} backgroundColor='#fafafa' />
       <Container>
         <Header
           selectedTable={selectedTable}
           onCancelOrder={handleResetOrder}
         />
 
-        {isLoading && (
-          <CenteredContainer>
-            <ActivityIndicator color="#D73035" size="large" />
-          </CenteredContainer>
-        )}
-
         {!isLoading && (
           <>
             <CategoriesContainer>
-              <Categories
-                onSelectCategory={handleSelectCatetegory}
-                categories={categories}
-              />
+              <Categories categories={categories} onSelectedCategory={handleSelectedCategory}/>
             </CategoriesContainer>
 
             {isLoadingProducts ? (
               <CenteredContainer>
-                <ActivityIndicator color="#D73035" size="large" />
+                <ActivityIndicator size='large' color='#D73035' />
               </CenteredContainer>
             ) : (
               <>
                 {products.length > 0 ? (
                   <MenuContainer>
-                    <Menu
-                      onAddToCart={handleAddToCart}
-                      products={products}
-                    />
+                    <Menu onAddToCart={handleAddToCart} products={products} />
                   </MenuContainer>
                 ) : (
                   <CenteredContainer>
                     <Empty />
-                    <Text color='#666' style={{ marginTop: 22 }}>Nehum produto foi encontrado!</Text>
+                    <Text color='#666' style={{ marginTop: 24 }}>Nenhum produto foi encontrado!</Text>
                   </CenteredContainer>
                 )}
               </>
             )}
           </>
         )}
+
+        {isLoading && (
+          <CenteredContainer>
+            <ActivityIndicator size='large' color='#D73035' />
+          </CenteredContainer>
+        )}
       </Container>
 
       <Footer>
         <FooterContainer>
           {!selectedTable && (
-            <Button
-              onPress={() => setIsTableModalVisible(true)}
-              disabled={isLoading}
-            >
-              Novo Pedido
-            </Button>
+            <Button onPress={() => setIsTableModalVisible(true)}>Novo Pedido</Button>
           )}
 
           {selectedTable && (
             <Cart
-              onAdd={handleAddToCart}
               cartItems={cartItems}
-              onDrecrement={handleDecrementCartItem}
-              onConfimrOrder={handleResetOrder}
+              onAdd={handleAddToCart}
+              onRemove={handleRemoveFromCart}
+              onConfirmOrder={handleResetOrder}
               selectedTable={selectedTable}
             />
           )}
@@ -194,9 +163,9 @@ export function Main() {
       </Footer>
 
       <TableModal
-        onSave={handleSaveTable}
         visible={isTableModalVisible}
         onClose={() => setIsTableModalVisible(false)}
+        onSave={handleSaveTable}
       />
     </>
   );
